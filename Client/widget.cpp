@@ -19,8 +19,11 @@ Widget::Widget(QWidget *parent)
     msgArea(new QLineEdit),
     tcpSocket(new QTcpSocket(this))
 {
+    chatArea->setReadOnly(1);
     qDebug() << "Constructor is called";
     hostCombo->setEditable(true);
+    sendButton->setEnabled(0);
+    msgArea->setReadOnly(1);
     // find out name of this machine
     QString name = QHostInfo::localHostName();
     if (!name.isEmpty()) {
@@ -64,24 +67,25 @@ Widget::Widget(QWidget *parent)
             this, &Widget::enableButtons);
     connect(connectButton, SIGNAL(clicked()),
             this, SLOT(openConnection()));
-    connect(sendButton, &QAbstractButton::clicked,
+    connect(sendButton, SIGNAL(clicked()),
             this, SLOT(sendMsg()));
-    connect(disconnectButton, &QAbstractButton::clicked,
-            this, SLOT(disconectClient()));
+    connect(disconnectButton, SIGNAL(clicked()),
+            this, SLOT(disconnectClient()));
 
-    connect(tcpSocket, &QAbstractSocket::connected, this, SLOT(updMsgs()));
+    connect(tcpSocket, SIGNAL(connected()), this, SLOT(updMsgs()));
     connect(tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
-            this, &Widget::displayError);
+          this, &Widget::displayError);
 
     QGridLayout *mainLayout = new QGridLayout(this);
     mainLayout->addWidget(hostLabel, 0, 0);
     mainLayout->addWidget(hostCombo, 0, 1);
     mainLayout->addWidget(portLabel, 1, 0);
     mainLayout->addWidget(portLineEdit, 1, 1);
-    mainLayout->addWidget(chatArea, 2, 0, 5, 2);
-    mainLayout->addWidget(msgArea, 3, 0);
-    mainLayout->addWidget(disconnectButton, 4, 0, 1, 1);
-    mainLayout->addWidget(sendButton, 4, 1, 1, 1);
+    mainLayout->addWidget(connectButton, 2, 0, 1, 2);
+    mainLayout->addWidget(chatArea, 3, 0, 5, 2);
+    mainLayout->addWidget(msgArea, 8, 0, 1, 2);
+    mainLayout->addWidget(disconnectButton, 9, 0, 1, 1);
+    mainLayout->addWidget(sendButton, 9, 1, 1, 1);
 
     portLineEdit->setFocus();
 
@@ -99,10 +103,18 @@ void Widget::openConnection()
     tcpSocket->abort();
     tcpSocket->connectToHost(hostCombo->currentText(),
                              portLineEdit->text().toInt());
-    updMsgs();
+    disconnectButton->setEnabled(1);
+    sendButton->setEnabled(1);
+    msgArea->clear(); msgArea->setReadOnly(0);
+
+    hostCombo->setEnabled(0);
+    portLineEdit->setReadOnly(1);
+    connectButton->setEnabled(0);
 }
 void Widget::updMsgs(){
     chatArea->clear();
+
+    in.startTransaction();
 
     int n;
     in >> n;
@@ -132,7 +144,13 @@ void Widget::sendMsg()
     tcpSocket->flush();
 }
 void Widget::disconnectClient(){
-    emit disconnect();
+    emit tcpSocket->disconnected();
+    sendButton->setEnabled(0);
+    disconnectButton->setEnabled(0);
+
+    hostCombo->setEnabled(1);
+    portLineEdit->setReadOnly(0);
+    connectButton->setEnabled(1);
 }
 void Widget::displayError(QAbstractSocket::SocketError socketError)
 {
@@ -162,10 +180,7 @@ void Widget::displayError(QAbstractSocket::SocketError socketError)
 }
 void Widget::enableButtons()
 {
-    sendButton->setEnabled(!hostCombo->currentText().isEmpty() &&
-                                 !portLineEdit->text().isEmpty() &&
-                                 !msgArea->text().isEmpty());
-    disconnectButton->setEnabled(!hostCombo->currentText().isEmpty() &&
+    connectButton->setEnabled(!hostCombo->currentText().isEmpty() &&
                                  !portLineEdit->text().isEmpty());
 
 }

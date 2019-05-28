@@ -16,7 +16,7 @@ public:
     ~Widget();
 
 private slots:
-    void sendMsgs();
+    void sendMsgs(QTcpSocket*);
     void sendMsgs_all();
     void hanleNewConnection();
     void hanleReadyRead();

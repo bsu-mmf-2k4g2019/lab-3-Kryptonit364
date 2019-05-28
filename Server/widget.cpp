@@ -40,7 +40,7 @@ Widget::Widget(QWidget *parent)
         ipAddress = QHostAddress(QHostAddress::LocalHost).toString();
 
     statusLabel->setText(QString("The server is running on\n\nIP: %1\nport: %2\n\n"
-                            "Run the Fortune Client example now.")
+                            "Now you can launch client tools.")
                          .arg(ipAddress).arg(tcpServer->serverPort()));
     qDebug() << "Start server on: " << ipAddress << ":" << tcpServer->serverPort();
 
@@ -69,21 +69,22 @@ Widget::~Widget()
 
 }
 
-void Widget::sendMsgs()
+void Widget::sendMsgs(QTcpSocket *clientConnection)
 {
     QByteArray block;
     QDataStream out(&block, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Qt_4_0);
-    QTcpSocket *clientConnection = dynamic_cast<QTcpSocket*>(sender());
 
     out << msgs.size();
     clientConnection->write(block);
+    clientConnection->flush();
     block.clear();
 
     for (int i = 0; i < msgs.size(); i++) //Запись всех сообщений в блок
         out << msgs.takeAt(i);
 
     clientConnection->write(block);
+    clientConnection->flush();
 }
 
 void Widget::sendMsgs_all()
@@ -110,8 +111,7 @@ void Widget::hanleNewConnection()
     in.setDevice(clientConnection);
     connect(clientConnection, &QAbstractSocket::readyRead, this, &Widget::hanleReadyRead);
     clients.append(clientConnection);
-    connect(clientConnection, SIGNAL(disconnect()), this, SLOT(dropClient()));
-
+    connect(clientConnection, SIGNAL(disconnected()), this, SLOT(dropClient()));
 }
 
 void Widget::hanleReadyRead()
