@@ -10,6 +10,7 @@
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent),
+    helpLabel(new QLabel("Name:")),
     hostCombo(new QComboBox),
     portLineEdit(new QLineEdit),
     connectButton(new QPushButton("Connect")),
@@ -20,7 +21,6 @@ Widget::Widget(QWidget *parent)
     tcpSocket(new QTcpSocket(this))
 {
     chatArea->setReadOnly(1);
-    qDebug() << "Constructor is called";
     hostCombo->setEditable(true);
     sendButton->setEnabled(0);
     msgArea->setReadOnly(1);
@@ -53,6 +53,7 @@ Widget::Widget(QWidget *parent)
     hostLabel->setBuddy(hostCombo);
     auto portLabel = new QLabel("Server port:");
     portLabel->setBuddy(portLineEdit);
+    helpLabel->setBuddy(msgArea);
 
     msgArea->setText("Connect to some server may be :?");
     connectButton->setDefault(1);
@@ -69,13 +70,9 @@ Widget::Widget(QWidget *parent)
             this, SLOT(openConnection()));
     connect(sendButton, SIGNAL(clicked()),
             this, SLOT(sendMsg()));
+    connect(msgArea, &QLineEdit::textChanged, this, &Widget::enableButtons);
     connect(disconnectButton, SIGNAL(clicked()),
             this, SLOT(disconnectClient()));
-
-    connect(tcpSocket, SIGNAL(connected()), this, SLOT(updMsgs()));
-    connect(tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
-          this, &Widget::displayError);
-
     QGridLayout *mainLayout = new QGridLayout(this);
     mainLayout->addWidget(hostLabel, 0, 0);
     mainLayout->addWidget(hostCombo, 0, 1);
@@ -83,7 +80,8 @@ Widget::Widget(QWidget *parent)
     mainLayout->addWidget(portLineEdit, 1, 1);
     mainLayout->addWidget(connectButton, 2, 0, 1, 2);
     mainLayout->addWidget(chatArea, 3, 0, 5, 2);
-    mainLayout->addWidget(msgArea, 8, 0, 1, 2);
+    mainLayout->addWidget(helpLabel, 8, 0);
+    mainLayout->addWidget(msgArea, 8, 1);
     mainLayout->addWidget(disconnectButton, 9, 0, 1, 1);
     mainLayout->addWidget(sendButton, 9, 1, 1, 1);
 
@@ -97,7 +95,9 @@ Widget::~Widget()
 }
 void Widget::openConnection()
 {
-    qDebug() << "Open connection is called";
+    connect(tcpSocket, SIGNAL(connected()), this, SLOT(updMsgs()));
+    connect(tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
+          this, &Widget::displayError);
     sendButton->setEnabled(false);
     disconnectButton->setEnabled(false);
     tcpSocket->abort();
@@ -108,32 +108,25 @@ void Widget::openConnection()
     msgArea->clear(); msgArea->setReadOnly(0);
 
     hostCombo->setEnabled(0);
-    portLineEdit->setReadOnly(1);
+    portLineEdit->setEnabled(0);
     connectButton->setEnabled(0);
+    connect(tcpSocket, &QAbstractSocket::readyRead,
+            this, &Widget::updMsgs);
 }
 void Widget::updMsgs(){
-    chatArea->clear();
+    QString msgs_t;
 
     in.startTransaction();
-
-    int n;
-    in >> n;
+    in >> msgs_t;
 
     if (!in.commitTransaction())
         return;
 
-    QString *msgs = new QString[n];
-    for (int i = 0; i < n; i++){
-        in >> msgs[i];
-        if (!in.commitTransaction())
-            return;
-        chatArea->append("> " + msgs[i] + "\n");
-    }
-
-    //disconnect(tcpSocket, &QAbstractSocket::readyRead, this, &Widget::readFortune);
+    chatArea->setText(msgs_t);
 }
 void Widget::sendMsg()
 {
+    helpLabel->setText("Message:");
     QByteArray block;
     QDataStream out(&block, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Qt_5_10);
@@ -142,15 +135,25 @@ void Widget::sendMsg()
 
     tcpSocket->write(block);
     tcpSocket->flush();
+    msgArea->clear();
 }
 void Widget::disconnectClient(){
-    emit tcpSocket->disconnected();
+    msgArea->setText("Connect to some server may be :?");
+    msgArea->setReadOnly(1);
+    disconnect(tcpSocket, SIGNAL(connected()), this, SLOT(updMsgs()));
+    disconnect(tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
+          this, &Widget::displayError);
+
+    tcpSocket->abort();
     sendButton->setEnabled(0);
     disconnectButton->setEnabled(0);
 
     hostCombo->setEnabled(1);
-    portLineEdit->setReadOnly(0);
+    portLineEdit->setEnabled(1);
     connectButton->setEnabled(1);
+    chatArea->clear();
+    msgArea->clear();
+    helpLabel->setText("Name:");
 }
 void Widget::displayError(QAbstractSocket::SocketError socketError)
 {
@@ -168,6 +171,7 @@ void Widget::displayError(QAbstractSocket::SocketError socketError)
                                     "Make sure the fortune server is running, "
                                     "and check that the host name and port "
                                     "settings are correct."));
+        disconnectClient();
         break;
     default:
         QMessageBox::information(this, tr("Client"),
@@ -181,6 +185,7 @@ void Widget::displayError(QAbstractSocket::SocketError socketError)
 void Widget::enableButtons()
 {
     connectButton->setEnabled(!hostCombo->currentText().isEmpty() &&
-                                 !portLineEdit->text().isEmpty());
-
+                                 !portLineEdit->text().isEmpty() &&
+                              chatArea->toPlainText().isEmpty());
+    sendButton->setEnabled(!msgArea->text().isEmpty());
 }

@@ -26,6 +26,7 @@ private slots:
     void enableButtons();
 
 private:
+    QLabel *helpLabel = nullptr;
     QComboBox *hostCombo = nullptr;
     QLineEdit *portLineEdit = nullptr;
 

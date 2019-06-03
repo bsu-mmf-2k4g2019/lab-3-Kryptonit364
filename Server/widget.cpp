@@ -59,17 +59,33 @@ Widget::Widget(QWidget *parent)
     mainLayout->addLayout(buttonLayout);
 
     // Initialize msgs
-    msgs << "Welcome!";
+    msgs << "Server started!";
+    senderName.push_back("%con%");
 
     in.setVersion(QDataStream::Qt_4_0);
 }
 
 Widget::~Widget()
 {
+    addMsg("Server died :(", "%con%");
+    addMsg("--------------- <<", "%con%");
 
+    sendMsgs_all();
+    msgs.clear();
+    senderName.clear();
+
+    clients.clear();
+    clientsNames.clear();
+    for (int i = 0; i < clients.size(); i++)
+        dropClient(clients.at(i));
 }
 
-void Widget::sendMsgs(QTcpSocket *clientConnection)
+void Widget::addMsg(QString msg, QString sender){
+    msgs.append(msg);
+    senderName.append(sender);
+}
+
+/*void Widget::sendMsgs(QTcpSocket *clientConnection)
 {
     QByteArray block;
     QDataStream out(&block, QIODevice::WriteOnly);
@@ -81,11 +97,11 @@ void Widget::sendMsgs(QTcpSocket *clientConnection)
     block.clear();
 
     for (int i = 0; i < msgs.size(); i++) //Запись всех сообщений в блок
-        out << msgs.takeAt(i);
+        out << msgs.at(i);
 
     clientConnection->write(block);
     clientConnection->flush();
-}
+}*/
 
 void Widget::sendMsgs_all()
 {
@@ -93,16 +109,21 @@ void Widget::sendMsgs_all()
     QDataStream out(&block, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Qt_4_0);
 
-    out << msgs.size();
-    for (int i = 0; i < clients.size(); i++) //Отправка всем клиентам кол-ва сообщений
-        clients.takeAt(i)->write(block);
-    block.clear();
+    QString msgs_t = "";
 
-    for (int i = 0; i < msgs.size(); i++) //Запись всех сообщений в блок
-        out << msgs.takeAt(i);
+    for (int i = 0; i < msgs.size(); i++){ //Заливаем все сообщения в строку
+        msgs_t.append((senderName.at(i) == "%con%" ?
+                           ">> " :
+                           "|" + (senderName.at(i) + "| > ")) +
+                      msgs.at(i) + "\n");
+    }
 
-    for (int i = 0; i < clients.size(); i++) //Отправка всем клиентам сообщения
-        clients.takeAt(i)->write(block);
+    out << msgs_t;
+
+    for (int i = 0; i < clients.size(); i++){ //Отправка всем клиентам сообщения
+        clients.at(i)->write(block);
+        clients.at(i)->flush();
+    }
 }
 
 void Widget::hanleNewConnection()
@@ -111,37 +132,80 @@ void Widget::hanleNewConnection()
     in.setDevice(clientConnection);
     connect(clientConnection, &QAbstractSocket::readyRead, this, &Widget::hanleReadyRead);
     clients.append(clientConnection);
+    enteredNick.append(false);
+    clientsNames.append("User #" + QVariant(clients.size()).toString());
     connect(clientConnection, SIGNAL(disconnected()), this, SLOT(dropClient()));
+    sendMsgs_all();
 }
 
 void Widget::hanleReadyRead()
 {
     QString msg;
 
+    int userNum = -1; //Определяем id отправителя
+    for (int i = 0; i < clients.size(); i++){
+        if (dynamic_cast<QTcpSocket*>(sender()) == clients.at(i))
+            userNum = i;
+    }
+
     // Read msg from client
+    in.setDevice(dynamic_cast<QTcpSocket*>(sender())); //Фишка мультиюзеров тут
     in.startTransaction();
     in >> msg;
-    if (!in.commitTransaction())
+    if (!in.commitTransaction() || msg.isEmpty())
         return;
     qDebug() << "Msg: " << msg;
-    msgs.push_back(msg);
+    if (enteredNick.at(userNum)){
+        msgs.push_back(msg);
+        senderName.append(clientsNames.at(userNum));
+    }
+    else{
+        clientsNames.replace(userNum, msg);
+        enteredNick.replace(userNum, true);
+        if (clientsNames.last() != "%con%"){ //Не детектим коннект админа)
+            msgs.push_back(clientsNames.last() + " connected!");
+            senderName.push_back("%con%");
+        }
+    }
 
     while(msgs.size() > 50) //Не более 50 сообщений
         msgs.pop_front();
 
     sendMsgs_all();
-    //dropClient(dynamic_cast<QTcpSocket*>(sender()));
 }
 
-
+void Widget::dropClient(QTcpSocket *client)
+{
+    disconnect(client, &QAbstractSocket::readyRead, this, &Widget::hanleReadyRead);
+    for (int i = 0; i < clients.size(); i++)
+        if (clients.at(i) == client){
+            if (clientsNames.at(i) != "%con%"){
+                msgs.append(clientsNames.at(i) + " left us...");
+                senderName.append("%con%");
+            }
+            msgs.append(clientsNames.at(i) + " left us...");
+            senderName.append("%con%");
+            clients.removeAt(i);
+            clientsNames.removeAt(i);
+            enteredNick.removeAt(i);
+        }
+    client->disconnectFromHost();
+    sendMsgs_all();
+}
 void Widget::dropClient()
 {
     QTcpSocket *client = dynamic_cast<QTcpSocket*>(sender());
     disconnect(client, &QAbstractSocket::readyRead, this, &Widget::hanleReadyRead);
-    //connect(client, &QAbstractSocket::disconnected, client, &QObject::deleteLater);
     for (int i = 0; i < clients.size(); i++)
-        if (clients.takeAt(i) == client)
+        if (clients.at(i) == client){
+            if (clientsNames.at(i) != "%con%"){
+                msgs.append(clientsNames.at(i) + " left us...");
+                senderName.append("%con%");
+            }
             clients.removeAt(i);
-    msgs.append("Someone left us...");
+            clientsNames.removeAt(i);
+            enteredNick.removeAt(i);
+        }
     client->disconnectFromHost();
+    sendMsgs_all();
 }

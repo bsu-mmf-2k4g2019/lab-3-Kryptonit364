@@ -16,18 +16,22 @@ public:
     ~Widget();
 
 private slots:
-    void sendMsgs(QTcpSocket*);
     void sendMsgs_all();
     void hanleNewConnection();
     void hanleReadyRead();
+    void dropClient(QTcpSocket*);
     void dropClient();
 
 private:
+    void addMsg(QString msg, QString sender);
     QLabel *statusLabel = nullptr;
     QTcpServer *tcpServer = nullptr;
     QVector<QString> msgs;
+    QVector<QString> senderName;
 
     QVector<QTcpSocket*> clients;
+    QVector<bool> enteredNick;
+    QVector<QString> clientsNames;
 
     QDataStream in;
 };
