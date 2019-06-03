@@ -155,16 +155,22 @@ void Widget::hanleReadyRead()
         return;
     //qDebug() << "Msg: " << msg;
     if (enteredNick.at(userNum)){
-        if (clientsNames.at(userNum) == "%con%" //Kick ability for admin
-                && msg.contains("!kick")){
-            QString aim = msg.mid(6, msg.length() - 1);
-            for (int i = 0; i < clientsNames.size(); i++){
-                if (clientsNames.at(i) == aim){
-                    dropClient(clients.at(i));
-                    break;
+        if (clientsNames.at(userNum) == "%con%"){ //Abilities for admin
+                if (msg.contains("!kick")){
+                    QString aim = msg.mid(6, msg.length() - 1);
+                    for (int i = 0; i < clientsNames.size(); i++){
+                        if (clientsNames.at(i) == aim){
+                            dropClient(clients.at(i));
+                            break;
+                        }
+                    }
+                    return;
                 }
-            }
-            return;
+                if (msg.contains("!clear")){
+                    msgs.clear();
+                    senderName.clear();
+                    msg = "Chat has been cleared!";
+                }
         }
         msgs.push_back(msg);
         senderName.append(clientsNames.at(userNum));

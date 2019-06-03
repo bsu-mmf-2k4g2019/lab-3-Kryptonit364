@@ -73,8 +73,8 @@ Widget::Widget(QWidget *parent)
             this, SLOT(sendMsg()));
     connect(msgArea, &QLineEdit::textChanged, this, &Widget::enableButtons);
     connect(disconnectButton, SIGNAL(clicked()),
-            this, SLOT(disconnectClient()));
-    //connect(tcpSocket, &QTcpSocket::disconnected, this, &Widget::disonnectClient);
+            this, SLOT(closeSocket()));
+    connect(tcpSocket, SIGNAL(disconnected()), this, SLOT(disconnectClient()));
     QGridLayout *mainLayout = new QGridLayout(this);
     mainLayout->addWidget(hostLabel, 0, 0);
     mainLayout->addWidget(hostCombo, 0, 1);
@@ -141,6 +141,9 @@ void Widget::sendMsg()
     tcpSocket->flush();
     msgArea->clear();
 }
+void Widget::closeSocket(){
+    tcpSocket->abort();
+}
 void Widget::disconnectClient(){
     msgArea->setText("Connect to some server may be :?");
     msgArea->setReadOnly(1);
@@ -148,7 +151,6 @@ void Widget::disconnectClient(){
     disconnect(tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
           this, &Widget::displayError);
 
-    tcpSocket->abort();
     sendButton->setEnabled(0);
     disconnectButton->setEnabled(0);
 
@@ -158,6 +160,7 @@ void Widget::disconnectClient(){
     chatArea->clear();
     msgArea->clear();
     helpLabel->setText("Name:");
+    QMessageBox::information(this, "Warning", "Disconnected from server!");
 }
 void Widget::displayError(QAbstractSocket::SocketError socketError)
 {

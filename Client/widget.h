@@ -22,6 +22,7 @@ private slots:
     void updMsgs();
     void openConnection();
     void displayError(QAbstractSocket::SocketError socketError);
+    void closeSocket();
     void disconnectClient();
     void enableButtons();
 
