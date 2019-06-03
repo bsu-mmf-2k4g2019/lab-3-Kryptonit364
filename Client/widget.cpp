@@ -6,6 +6,7 @@
 #include <QMessageBox>
 #include <QTimer>
 #include <QTextEdit>
+#include <QScrollBar>
 #include <QDebug>
 
 Widget::Widget(QWidget *parent)
@@ -124,6 +125,8 @@ void Widget::updMsgs(){
         return;
 
     chatArea->setText(msgs_t);
+    QScrollBar *sb = chatArea->verticalScrollBar();
+    sb->setValue(sb->maximum());
 }
 void Widget::sendMsg()
 {
