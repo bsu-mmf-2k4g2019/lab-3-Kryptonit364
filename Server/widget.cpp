@@ -12,7 +12,6 @@
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
 {
-    qDebug() << "Server constructor is called";
     statusLabel = new QLabel();
     statusLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
 
@@ -154,20 +153,28 @@ void Widget::hanleReadyRead()
     in >> msg;
     if (!in.commitTransaction() || msg.isEmpty())
         return;
-    qDebug() << "Msg: " << msg;
+    //qDebug() << "Msg: " << msg;
     if (enteredNick.at(userNum)){
+        if (clientsNames.at(userNum) == "%con%" //Kick ability for admin
+                && msg.contains("!kick")){
+            QString aim = msg.mid(6, msg.length() - 1);
+            for (int i = 0; i < clientsNames.size(); i++){
+                if (clientsNames.at(i) == aim){
+                    dropClient(clients.at(i));
+                    break;
+                }
+            }
+            return;
+        }
         msgs.push_back(msg);
         senderName.append(clientsNames.at(userNum));
     }
     else{
         clientsNames.replace(userNum, msg);
         enteredNick.replace(userNum, true);
-        if (clientsNames.last() != "%con%"){ //Не детектим коннект админа)
-            msgs.push_back(clientsNames.last() + " connected!");
-            senderName.push_back("%con%");
-        }
+        if (clientsNames.last() != "%con%") //Не детектим коннект админа)
+            addMsg(clientsNames.at(userNum) + " connected!", "%con%");
     }
-
     while(msgs.size() > 50) //Не более 50 сообщений
         msgs.pop_front();
 
@@ -176,36 +183,22 @@ void Widget::hanleReadyRead()
 
 void Widget::dropClient(QTcpSocket *client)
 {
-    disconnect(client, &QAbstractSocket::readyRead, this, &Widget::hanleReadyRead);
     for (int i = 0; i < clients.size(); i++)
         if (clients.at(i) == client){
             if (clientsNames.at(i) != "%con%"){
                 msgs.append(clientsNames.at(i) + " left us...");
                 senderName.append("%con%");
+                sendMsgs_all();
             }
-            msgs.append(clientsNames.at(i) + " left us...");
-            senderName.append("%con%");
             clients.removeAt(i);
             clientsNames.removeAt(i);
             enteredNick.removeAt(i);
         }
+    disconnect(client, &QAbstractSocket::readyRead, this, &Widget::hanleReadyRead);
     client->disconnectFromHost();
-    sendMsgs_all();
 }
 void Widget::dropClient()
 {
     QTcpSocket *client = dynamic_cast<QTcpSocket*>(sender());
-    disconnect(client, &QAbstractSocket::readyRead, this, &Widget::hanleReadyRead);
-    for (int i = 0; i < clients.size(); i++)
-        if (clients.at(i) == client){
-            if (clientsNames.at(i) != "%con%"){
-                msgs.append(clientsNames.at(i) + " left us...");
-                senderName.append("%con%");
-            }
-            clients.removeAt(i);
-            clientsNames.removeAt(i);
-            enteredNick.removeAt(i);
-        }
-    client->disconnectFromHost();
-    sendMsgs_all();
+    dropClient(client);
 }

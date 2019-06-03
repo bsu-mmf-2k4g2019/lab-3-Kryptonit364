@@ -73,6 +73,7 @@ Widget::Widget(QWidget *parent)
     connect(msgArea, &QLineEdit::textChanged, this, &Widget::enableButtons);
     connect(disconnectButton, SIGNAL(clicked()),
             this, SLOT(disconnectClient()));
+    //connect(tcpSocket, &QTcpSocket::disconnected, this, &Widget::disonnectClient);
     QGridLayout *mainLayout = new QGridLayout(this);
     mainLayout->addWidget(hostLabel, 0, 0);
     mainLayout->addWidget(hostCombo, 0, 1);
@@ -168,7 +169,7 @@ void Widget::displayError(QAbstractSocket::SocketError socketError)
     case QAbstractSocket::ConnectionRefusedError:
         QMessageBox::information(this, tr("Client"),
                                  tr("The connection was refused by the peer. "
-                                    "Make sure the fortune server is running, "
+                                    "Make sure the chat server is running, "
                                     "and check that the host name and port "
                                     "settings are correct."));
         disconnectClient();
